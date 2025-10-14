@@ -6,25 +6,24 @@ import { WebglAddon } from 'xterm-addon-webgl'
 import styles from '@/pages/console/index.module.less'
 import 'xterm/css/xterm.css'
 
+interface ConsoleProps {
+    username: string
+    clientId: string
+}
+
 const str2ab = (str: string) => {
     const enc = new TextEncoder()
     return enc.encode(str)
 }
 
-const useQuery = () => {
-    return new URLSearchParams(window.location.search)
-}
-
-const SerialConsole: React.FC = () => {
-    const query = useQuery()
+const Console: React.FC<ConsoleProps> = ({ username, clientId }) => {
     const host = window.location.host
-
-    const namespace = query.get('namespace')
-    const name = query.get('name')
 
     const divRef = useRef<HTMLDivElement>(null)
     const terminalRef = useRef<Terminal | null>(null)
     const wsRef = useRef<WebSocket | null>(null)
+
+    const decoder = new TextDecoder('utf-8', { fatal: false })
 
     const initializeTerminal = () => {
         const terminal = new Terminal({
@@ -43,7 +42,7 @@ const SerialConsole: React.FC = () => {
         terminal.loadAddon(fitAddon)
         terminal.loadAddon(new WebLinksAddon())
 
-        const ws = new WebSocket(`ws://${host}/apis/vink.io/v1alpha1/namespaces/${namespace}/virtualmachines/${name}/console`)
+        const ws = new WebSocket(`ws://${host}/ws/ssh?client_id=${clientId}&username=${username}`)
         ws.onopen = () => {
             terminal.open(divRef.current!)
             fitAddon.fit()
@@ -64,8 +63,7 @@ const SerialConsole: React.FC = () => {
 
         ws.onmessage = async (event) => {
             const rawData = await event.data.arrayBuffer()
-            const decoder = new TextDecoder('utf-8')
-            const text = decoder.decode(rawData)
+            const text = decoder.decode(rawData, { stream: true })
             terminal.write(text)
         }
 
@@ -82,7 +80,7 @@ const SerialConsole: React.FC = () => {
     }
 
     useEffect(() => {
-        if (!namespace || !name) {
+        if (!clientId || !username) {
             return
         }
 
@@ -97,24 +95,9 @@ const SerialConsole: React.FC = () => {
             terminalRef.current = null
             wsRef.current = null
         }
-    }, [namespace, name])
+    }, [clientId, username])
 
-    return <div className={styles["serial-console"]} ref={divRef} />
+    return <div className={styles["console"]} ref={divRef} />
 }
 
-export default SerialConsole
-
-// const fit = (fitAddon: FitAddon, ws: WebSocket) => {
-//     fitAddon.fit()
-
-//     const dimensions = fitAddon.proposeDimensions()
-//     const rows = dimensions?.rows ?? 100
-//     const cols = dimensions?.cols ?? 100
-
-//     const message = JSON.stringify({
-//         Width: cols,
-//         Height: rows
-//     })
-
-//     ws.send(str2ab(message))
-// }
+export default Console
